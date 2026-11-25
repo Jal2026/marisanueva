@@ -1,5 +1,6 @@
 // =====================================================
-// PAGE CODE — Inicio v1.3.0 — 25/11/2026
+// PAGE CODE — Inicio v1.4.0 — 25/11/2026
+// v1.4.0: sin botón "Explorar proyecto" (no se pasa link al visor)
 // v1.3.0: filas al cargar → escritorio 6, móvil 9
 // v1.2.0: filas al cargar → escritorio 4, móvil 7
 // v1.1.0: breakpoints del mosaico alineados con Studio (1001 / 751)
@@ -18,7 +19,7 @@ import wixData from 'wix-data';
 import wixLocationFrontend from 'wix-location-frontend';
 import wixWindowFrontend from 'wix-window-frontend';
 
-const TAG = '[Inicio v1.3.0]';
+const TAG = '[Inicio v1.4.0]';
 const EL = '#mosaico';
 const COL_TRABAJOS = 'Import1';
 
@@ -113,7 +114,6 @@ function aItem(r) {
     cover,
     images: galeria,
     pinned: r.enPortada === true,
-    link: limpio(r.trabajosItem),
     alt: proyecto
   };
 }
