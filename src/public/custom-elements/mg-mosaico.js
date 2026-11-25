@@ -1,5 +1,8 @@
 /* =====================================================================
-   mg-mosaico.js — v1.2.0 — 25/11/2026
+   mg-mosaico.js — v1.3.0 — 25/11/2026
+   v1.3.0: config.autoLoad = -1 → carga continua sin tope ni "Ver más";
+           config.skip → botón flotante "Ir al final" (pausa la carga hasta volver al mosaico);
+           bolitas del visor más grandes: gris oscuro y la activa en cian (colors.dot / colors.dotActive)
    v1.2.0: config.photos (una miniatura por foto), config.shuffle (orden aleatorio),
            config.autoLoad (cargas automáticas al bajar antes de "Ver más"),
            el visor se abre en la foto pulsada
@@ -36,7 +39,7 @@
   'use strict';
 
   const TAG = 'mg-mosaico';
-  const VERSION = '1.2.0';
+  const VERSION = '1.3.0';
   if (typeof window === 'undefined' || !window.customElements || customElements.get(TAG)) return;
 
   /* ---------- Valores por defecto (todos sobrescribibles con el atributo config) ---------- */
@@ -47,7 +50,8 @@
     more: { wide: 2, desktop: 2, tablet: 4, mobile: 3 },      // filas que añade cada "Ver más"
     photos: false,                                            // true = una miniatura por cada foto de todos los proyectos
     shuffle: false,                                           // true = orden aleatorio en cada carga
-    autoLoad: 0,                                              // cargas automáticas al bajar antes de mostrar "Ver más"
+    autoLoad: 0,                                              // cargas automáticas al bajar antes de mostrar "Ver más" · -1 = sin límite
+    skip: false,                                              // botón flotante "Ir al final" mientras se recorre el mosaico
     gap:  { wide: 4, desktop: 4, tablet: 3, mobile: 2 },      // px
     ratio: '3/4',                                             // proporción de la miniatura (ancho/alto)
     hover: true,                                              // velo con título al pasar el ratón
@@ -64,7 +68,9 @@
       stage: '#efece8',
       backdrop: 'rgba(18,17,16,.88)',
       overlayInk: '#ffffff',
-      border: '#1c2540'
+      border: '#1c2540',
+      dot: '#6f6f6f',
+      dotActive: '#00aeef'
     },
     labels: {
       more: 'Ver más proyectos',
@@ -73,7 +79,8 @@
       prev: 'Imagen anterior',
       next: 'Imagen siguiente',
       prevItem: 'Proyecto anterior',
-      nextItem: 'Proyecto siguiente'
+      nextItem: 'Proyecto siguiente',
+      skip: 'Ir al final'
     }
   };
 
@@ -89,7 +96,8 @@
     gallery: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 2h10a3 3 0 0 1 3 3v10a3 3 0 0 1-3 3H9a3 3 0 0 1-3-3V5a3 3 0 0 1 3-3zM3 7a1 1 0 0 1 1 1v10a2 2 0 0 0 2 2h10a1 1 0 1 1 0 2H6a4 4 0 0 1-4-4V8a1 1 0 0 1 1-1z"/></svg>',
     left: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4l-8 8 8 8"/></svg>',
     right: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4l8 8-8 8"/></svg>',
-    close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M5 5l14 14M19 5L5 19"/></svg>'
+    close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M5 5l14 14M19 5L5 19"/></svg>',
+    down: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v15M5 12l7 7 7-7"/></svg>'
   };
 
   /* ---------- Utilidades ---------- */
@@ -293,9 +301,9 @@ button{font:inherit;color:inherit;-webkit-tap-highlight-color:transparent}
 .ar{position:absolute;top:50%;z-index:2;width:44px;height:44px;margin-top:-22px;padding:0;border:0;border-radius:50%;background:rgba(255,255,255,.9);color:#1a1a1a;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 2px 12px rgba(0,0,0,.14)}
 .ar svg{display:block;width:18px;height:18px}
 .al{left:14px}.ax{right:14px}
-.dots{position:absolute;left:0;right:0;bottom:14px;z-index:2;display:flex;justify-content:center;gap:6px;pointer-events:none}
-.dot{display:block;width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.55);box-shadow:0 0 3px rgba(0,0,0,.35)}
-.dot.on{background:#fff}
+.dots{position:absolute;left:0;right:0;bottom:16px;z-index:2;display:flex;justify-content:center;gap:9px;pointer-events:none}
+.dot{display:block;width:10px;height:10px;border-radius:50%;background:var(--dot);box-shadow:0 0 0 1.5px rgba(255,255,255,.75)}
+.dot.on{background:var(--doton)}
 .info{display:flex;flex-direction:column;padding:44px 38px 32px;overflow-y:auto}
 .sub{margin:0 0 12px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--mut)}
 .t{margin:0 0 20px;font-family:var(--ft);font-weight:400;font-size:36px;line-height:1.08;color:var(--ink);text-wrap:balance}
@@ -331,6 +339,14 @@ button{font:inherit;color:inherit;-webkit-tap-highlight-color:transparent}
   .vw,.panel,.sl img,.cta,.pn{transition:none}
   .panel{transform:none}
 }`;
+
+  /* ---------- CSS del botón "Ir al final" (se monta en document.body) ---------- */
+  const SKIP_CSS = `
+button{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:12px 20px;border:0;border-radius:999px;background:var(--ink);color:var(--inv);font-family:var(--fb);font-size:12px;font-weight:500;line-height:1;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap;cursor:pointer;box-shadow:0 6px 24px rgba(0,0,0,.22);opacity:0;transform:translateY(12px);transition:opacity .25s ease,transform .25s ease;pointer-events:none;-webkit-tap-highlight-color:transparent}
+button.on{opacity:1;transform:none;pointer-events:auto}
+button:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
+button svg{display:block;width:14px;height:14px}
+@media (prefers-reduced-motion:reduce){button{transition:none}}`;
 
   /* ---------- Visor (se monta en document.body para cubrir toda la pantalla) ---------- */
   class Viewer {
@@ -443,6 +459,8 @@ button{font:inherit;color:inherit;-webkit-tap-highlight-color:transparent}
       s.setProperty('--stage', C.stage);
       s.setProperty('--bdp', C.backdrop);
       s.setProperty('--bb', C.border);
+      s.setProperty('--dot', C.dot);
+      s.setProperty('--doton', C.dotActive);
       this.x.setAttribute('aria-label', L.close);
       this.al.setAttribute('aria-label', L.prev);
       this.ax.setAttribute('aria-label', L.next);
@@ -601,6 +619,14 @@ button{font:inherit;color:inherit;-webkit-tap-highlight-color:transparent}
       this._sizes = '33vw';
       this._viewer = null;
       this._onWin = null;
+      this._paused = false;
+      this._skip = null;
+      this._skipBtn = null;
+      this._sraf = 0;
+      this._onScroll = () => {
+        if (this._sraf) return;
+        this._sraf = requestAnimationFrame(() => { this._sraf = 0; this._skipUpdate(); });
+      };
       const r = this.attachShadow({ mode: 'open' });
       r.innerHTML = `<style>${GRID_CSS}</style><div class="mg"><div class="grid" role="list"></div><div class="sent" aria-hidden="true"></div><div class="more" hidden><button type="button" class="more-btn"></button></div></div>`;
       this._wrap = r.querySelector('.mg');
@@ -627,7 +653,10 @@ button{font:inherit;color:inherit;-webkit-tap-highlight-color:transparent}
         this._onWin = () => this._layout();
         window.addEventListener('resize', this._onWin);
       }
+      window.addEventListener('scroll', this._onScroll, { passive: true });
+      window.addEventListener('resize', this._onScroll);
       this._layout();
+      this._onScroll();
     }
 
     disconnectedCallback() {
@@ -635,6 +664,10 @@ button{font:inherit;color:inherit;-webkit-tap-highlight-color:transparent}
       if (this._io) this._io.disconnect();
       if (this._onWin) { window.removeEventListener('resize', this._onWin); this._onWin = null; }
       if (this._viewer) { this._viewer.destroy(); this._viewer = null; }
+      window.removeEventListener('scroll', this._onScroll);
+      window.removeEventListener('resize', this._onScroll);
+      if (this._sraf) { cancelAnimationFrame(this._sraf); this._sraf = 0; }
+      if (this._skip) { this._skip.remove(); this._skip = null; this._skipBtn = null; }
     }
 
     attributeChangedCallback(name, oldV, newV) {
@@ -678,12 +711,14 @@ button{font:inherit;color:inherit;-webkit-tap-highlight-color:transparent}
       if (str(c.fontBody)) s.setProperty('--fb', c.fontBody); else s.removeProperty('--fb');
       if (str(c.fontTitle)) s.setProperty('--ft', c.fontTitle); else s.removeProperty('--ft');
       this._moreBtn.textContent = c.labels.more;
+      if (this._skip) this._skipStyle();
     }
 
     _reset() {
       this._grid.innerHTML = '';
       this._shown = 0;
-      this._autoLeft = this._io ? Math.max(0, int(this._cfg.autoLoad, 0)) : 0;
+      this._autoLeft = this._autoBudget();
+      this._paused = false;
       this._bp = '';
       this._cols = 0;
       this._layout();
@@ -723,16 +758,66 @@ button{font:inherit;color:inherit;-webkit-tap-highlight-color:transparent}
     _more(auto) {
       const rows = Math.max(1, int(this._cfg.more[this._bp], 2));
       this._shown = Math.min(this._tiles.length, this._shown + this._cols * rows);
-      if (!auto) this._autoLeft = this._io ? Math.max(0, int(this._cfg.autoLoad, 0)) : 0;
+      if (!auto) this._autoLeft = this._autoBudget();
       this._sync();
       if (auto && this._autoLeft > 0) requestAnimationFrame(() => this._auto());
     }
 
+    _autoBudget() {
+      const a = int(this._cfg.autoLoad, 0);
+      if (!this._io) return 0;
+      return a < 0 ? Infinity : a;
+    }
+
     _auto() {
+      const top = this._sent.getBoundingClientRect().top;
+      if (this._paused) {
+        if (top > window.innerHeight + 400) this._paused = false;
+        return;
+      }
       if (this._autoLeft <= 0 || !this._cols || this._shown >= this._tiles.length) return;
-      if (this._sent.getBoundingClientRect().top > window.innerHeight + 400) return;
+      if (top > window.innerHeight + 400) return;
       this._autoLeft--;
       this._more(true);
+    }
+
+    _skipUpdate() {
+      let on = false;
+      if (this._cfg.skip === true && this._tiles.length > 0) {
+        const r = this.getBoundingClientRect();
+        on = r.top < 0 && r.bottom > window.innerHeight + 40;
+      }
+      if (!on && !this._skip) return;
+      if (!this._skip) this._skipBuild();
+      this._skipBtn.classList.toggle('on', on);
+      this._skipBtn.tabIndex = on ? 0 : -1;
+    }
+
+    _skipBuild() {
+      const h = document.createElement('div');
+      h.setAttribute('data-mg-mosaico-skip', VERSION);
+      h.style.cssText = 'position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom, 0px));transform:translateX(-50%);z-index:2147482000;pointer-events:none;';
+      const r = h.attachShadow({ mode: 'open' });
+      r.innerHTML = `<style>${SKIP_CSS}</style><button type="button" tabindex="-1"><span></span>${ICON.down}</button>`;
+      document.body.appendChild(h);
+      this._skip = h;
+      this._skipBtn = r.querySelector('button');
+      this._skipBtn.addEventListener('click', () => this._skipGo());
+      this._skipStyle();
+    }
+
+    _skipStyle() {
+      const c = this._cfg, s = this._skip.style;
+      s.setProperty('--ink', c.colors.ink);
+      s.setProperty('--inv', c.colors.panel);
+      s.setProperty('--fb', str(c.fontBody) || getComputedStyle(this).fontFamily || 'inherit');
+      this._skipBtn.querySelector('span').textContent = c.labels.skip;
+    }
+
+    _skipGo() {
+      this._paused = true;
+      const y = this.getBoundingClientRect().bottom + window.pageYOffset;
+      window.scrollTo({ top: y, behavior: reduced() ? 'auto' : 'smooth' });
     }
 
     _sync() {
@@ -747,6 +832,7 @@ button{font:inherit;color:inherit;-webkit-tap-highlight-color:transparent}
         while (g.children.length > n) g.lastElementChild.remove();
       }
       this._moreWrap.hidden = n >= this._tiles.length || this._autoLeft > 0;
+      if (this._cfg.skip === true) this._onScroll();
     }
 
     _tile(t, i) {
