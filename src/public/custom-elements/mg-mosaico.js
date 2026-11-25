@@ -1,5 +1,6 @@
 /* =====================================================================
-   mg-mosaico.js — v1.3.0 — 25/11/2026
+   mg-mosaico.js — v1.4.0 — 26/11/2026
+   v1.4.0: el visor se abre siempre en la primera foto del proyecto
    v1.3.0: config.autoLoad = -1 → carga continua sin tope ni "Ver más";
            config.skip → botón flotante "Ir al final" (pausa la carga hasta volver al mosaico);
            bolitas del visor más grandes: gris oscuro y la activa en cian (colors.dot / colors.dotActive)
@@ -39,7 +40,7 @@
   'use strict';
 
   const TAG = 'mg-mosaico';
-  const VERSION = '1.3.0';
+  const VERSION = '1.4.0';
   if (typeof window === 'undefined' || !window.customElements || customElements.get(TAG)) return;
 
   /* ---------- Valores por defecto (todos sobrescribibles con el atributo config) ---------- */
@@ -863,7 +864,7 @@ button svg{display:block;width:14px;height:14px}
         return;
       }
       if (!this._viewer) this._viewer = new Viewer(this);
-      this._viewer.open(t.p, from, Math.max(0, t.k));
+      this._viewer.open(t.p, from, 0);
     }
   }
 
