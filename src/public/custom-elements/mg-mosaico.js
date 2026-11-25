@@ -1,5 +1,8 @@
 /* =====================================================================
-   mg-mosaico.js — v1.1.0 — 25/11/2026
+   mg-mosaico.js — v1.2.0 — 25/11/2026
+   v1.2.0: config.photos (una miniatura por foto), config.shuffle (orden aleatorio),
+           config.autoLoad (cargas automáticas al bajar antes de "Ver más"),
+           el visor se abre en la foto pulsada
    v1.1.0: "Ver más" añade config.more filas (escritorio 2, móvil 3)
    Mosaico de proyectos tipo Instagram — web pública Marisa Gutiérrez
    ---------------------------------------------------------------------
@@ -33,7 +36,7 @@
   'use strict';
 
   const TAG = 'mg-mosaico';
-  const VERSION = '1.1.0';
+  const VERSION = '1.2.0';
   if (typeof window === 'undefined' || !window.customElements || customElements.get(TAG)) return;
 
   /* ---------- Valores por defecto (todos sobrescribibles con el atributo config) ---------- */
@@ -42,6 +45,9 @@
     cols: { wide: 6, desktop: 4, tablet: 3, mobile: 3 },
     rows: { wide: 2, desktop: 3, tablet: 4, mobile: 4 },      // filas visibles al cargar · 0 = todas
     more: { wide: 2, desktop: 2, tablet: 4, mobile: 3 },      // filas que añade cada "Ver más"
+    photos: false,                                            // true = una miniatura por cada foto de todos los proyectos
+    shuffle: false,                                           // true = orden aleatorio en cada carga
+    autoLoad: 0,                                              // cargas automáticas al bajar antes de mostrar "Ver más"
     gap:  { wide: 4, desktop: 4, tablet: 3, mobile: 2 },      // px
     ratio: '3/4',                                             // proporción de la miniatura (ancho/alto)
     hover: true,                                              // velo con título al pasar el ratón
@@ -447,14 +453,14 @@ button{font:inherit;color:inherit;-webkit-tap-highlight-color:transparent}
       nb[1].textContent = L.nextItem;
     }
 
-    open(i, from) {
+    open(i, from, k) {
       const items = this.o._items;
       if (!items.length) return;
       if (!this.h) this.build();
       this.style();
       const wasOpen = this.i >= 0;
       this.i = ((i % items.length) + items.length) % items.length;
-      this.k = 0;
+      this.k = Math.max(0, Math.min(int(k, 0), items[this.i].images.length - 1));
       if (!wasOpen) {
         this.back = from || null;
         const de = document.documentElement, b = document.body;
@@ -474,14 +480,14 @@ button{font:inherit;color:inherit;-webkit-tap-highlight-color:transparent}
     }
 
     fill() {
-      const it = this.o._items[this.i], c = this.o._cfg, L = c.labels, n = it.images.length;
+      const it = this.o._items[this.i], c = this.o._cfg, L = c.labels, n = it.images.length, k0 = this.k;
       this.vw.setAttribute('aria-label', it.title || L.open);
       this.track.innerHTML = it.images.map((m, k) => {
         const s = viewSrc(m, int(c.quality, 80));
         const alt = it.alt + (n > 1 ? ` (${k + 1}/${n})` : '');
-        return `<figure class="sl"><img src="${esc(s.src)}"${s.srcset ? ` srcset="${esc(s.srcset)}" sizes="${VIEW_SIZES}"` : ''} data-fb="${esc(m.url)}" alt="${esc(alt)}" loading="${k < 2 ? 'eager' : 'lazy'}" decoding="async" draggable="false"></figure>`;
+        return `<figure class="sl"><img src="${esc(s.src)}"${s.srcset ? ` srcset="${esc(s.srcset)}" sizes="${VIEW_SIZES}"` : ''} data-fb="${esc(m.url)}" alt="${esc(alt)}" loading="${Math.abs(k - k0) <= 1 ? 'eager' : 'lazy'}" decoding="async" draggable="false"></figure>`;
       }).join('');
-      this.track.scrollLeft = 0;
+      this.track.scrollLeft = k0 * this.track.clientWidth;
       this.track.querySelectorAll('img').forEach(im => { if (im.complete && im.naturalWidth) im.classList.add('ok'); });
       this.sub.textContent = it.subtitle;
       this.sub.hidden = !it.subtitle;
@@ -585,6 +591,8 @@ button{font:inherit;color:inherit;-webkit-tap-highlight-color:transparent}
     constructor() {
       super();
       this._items = [];
+      this._tiles = [];
+      this._autoLeft = 0;
       this._cfg = merge(DEFAULTS, null);
       this._k = 4 / 3;
       this._bp = '';
@@ -594,11 +602,12 @@ button{font:inherit;color:inherit;-webkit-tap-highlight-color:transparent}
       this._viewer = null;
       this._onWin = null;
       const r = this.attachShadow({ mode: 'open' });
-      r.innerHTML = `<style>${GRID_CSS}</style><div class="mg"><div class="grid" role="list"></div><div class="more" hidden><button type="button" class="more-btn"></button></div></div>`;
+      r.innerHTML = `<style>${GRID_CSS}</style><div class="mg"><div class="grid" role="list"></div><div class="sent" aria-hidden="true"></div><div class="more" hidden><button type="button" class="more-btn"></button></div></div>`;
       this._wrap = r.querySelector('.mg');
       this._grid = r.querySelector('.grid');
       this._moreWrap = r.querySelector('.more');
       this._moreBtn = r.querySelector('.more-btn');
+      this._sent = r.querySelector('.sent');
       this._grid.addEventListener('click', e => {
         const t = e.target.closest('.tile');
         if (t) this._open(int(t.getAttribute('data-i'), -1), t);
@@ -607,10 +616,12 @@ button{font:inherit;color:inherit;-webkit-tap-highlight-color:transparent}
       r.addEventListener('load', onImgLoad, true);
       r.addEventListener('error', onImgError, true);
       this._ro = typeof ResizeObserver === 'function' ? new ResizeObserver(() => this._layout()) : null;
+      this._io = typeof IntersectionObserver === 'function' ? new IntersectionObserver(() => this._auto(), { rootMargin: '0px 0px 400px 0px' }) : null;
       this._applyConfig();
     }
 
     connectedCallback() {
+      if (this._io) this._io.observe(this._sent);
       if (this._ro) this._ro.observe(this);
       else if (!this._onWin) {
         this._onWin = () => this._layout();
@@ -621,6 +632,7 @@ button{font:inherit;color:inherit;-webkit-tap-highlight-color:transparent}
 
     disconnectedCallback() {
       if (this._ro) this._ro.disconnect();
+      if (this._io) this._io.disconnect();
       if (this._onWin) { window.removeEventListener('resize', this._onWin); this._onWin = null; }
       if (this._viewer) { this._viewer.destroy(); this._viewer = null; }
     }
@@ -634,7 +646,23 @@ button{font:inherit;color:inherit;-webkit-tap-highlight-color:transparent}
         this._items = normItems(parseJSON(newV, []));
       }
       if (this._viewer) this._viewer.close();
+      this._buildTiles();
       this._reset();
+    }
+
+    _buildTiles() {
+      const c = this._cfg, t = [];
+      this._items.forEach((it, p) => {
+        if (c.photos === true) it.images.forEach((m, k) => t.push({ p, k }));
+        else t.push({ p, k: -1 });
+      });
+      if (c.shuffle === true) {
+        for (let i = t.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          const x = t[i]; t[i] = t[j]; t[j] = x;
+        }
+      }
+      this._tiles = t;
     }
 
     _applyConfig() {
@@ -655,6 +683,7 @@ button{font:inherit;color:inherit;-webkit-tap-highlight-color:transparent}
     _reset() {
       this._grid.innerHTML = '';
       this._shown = 0;
+      this._autoLeft = this._io ? Math.max(0, int(this._cfg.autoLoad, 0)) : 0;
       this._bp = '';
       this._cols = 0;
       this._layout();
@@ -683,7 +712,7 @@ button{font:inherit;color:inherit;-webkit-tap-highlight-color:transparent}
     }
 
     _fit() {
-      const n = this._items.length, cols = this._cols;
+      const n = this._tiles.length, cols = this._cols;
       const rows = Math.max(0, int(this._cfg.rows[this._bp], 0));
       let show = rows > 0 ? Math.max(this._shown, cols * rows) : n;
       show = Math.min(n, Math.ceil(show / cols) * cols);
@@ -691,16 +720,25 @@ button{font:inherit;color:inherit;-webkit-tap-highlight-color:transparent}
       this._sync();
     }
 
-    _more() {
+    _more(auto) {
       const rows = Math.max(1, int(this._cfg.more[this._bp], 2));
-      this._shown = Math.min(this._items.length, this._shown + this._cols * rows);
+      this._shown = Math.min(this._tiles.length, this._shown + this._cols * rows);
+      if (!auto) this._autoLeft = this._io ? Math.max(0, int(this._cfg.autoLoad, 0)) : 0;
       this._sync();
+      if (auto && this._autoLeft > 0) requestAnimationFrame(() => this._auto());
+    }
+
+    _auto() {
+      if (this._autoLeft <= 0 || !this._cols || this._shown >= this._tiles.length) return;
+      if (this._sent.getBoundingClientRect().top > window.innerHeight + 400) return;
+      this._autoLeft--;
+      this._more(true);
     }
 
     _sync() {
       const g = this._grid, have = g.children.length, n = this._shown;
       if (have < n) {
-        g.insertAdjacentHTML('beforeend', this._items.slice(have, n).map((it, j) => this._tile(it, have + j)).join(''));
+        g.insertAdjacentHTML('beforeend', this._tiles.slice(have, n).map((t, j) => this._tile(t, have + j)).join(''));
         for (let j = have; j < n; j++) {
           const im = g.children[j].querySelector('img');
           if (im && im.complete && im.naturalWidth) im.classList.add('ok');
@@ -708,36 +746,38 @@ button{font:inherit;color:inherit;-webkit-tap-highlight-color:transparent}
       } else {
         while (g.children.length > n) g.lastElementChild.remove();
       }
-      this._moreWrap.hidden = n >= this._items.length;
+      this._moreWrap.hidden = n >= this._tiles.length || this._autoLeft > 0;
     }
 
-    _tile(it, i) {
-      const c = this._cfg;
-      const s = tileSrc(it.cover, this._k, int(c.quality, 80));
-      const icons = (it.pinned ? `<span class="ic">${ICON.pin}</span>` : '')
+    _tile(t, i) {
+      const c = this._cfg, it = this._items[t.p], photo = t.k >= 0;
+      const m = photo ? it.images[t.k] : it.cover;
+      const s = tileSrc(m, this._k, int(c.quality, 80));
+      const icons = photo ? '' : (it.pinned ? `<span class="ic">${ICON.pin}</span>` : '')
         + (it.images.length > 1 ? `<span class="ic">${ICON.gallery}</span>` : '');
       const label = [it.title, it.subtitle].filter(Boolean).join(' · ') || c.labels.open;
-      const cap = it.overlay && (it.badge || it.title)
+      const cap = !photo && it.overlay && (it.badge || it.title)
         ? `<span class="cap" aria-hidden="true">${it.badge ? `<span class="cap-k">${esc(it.badge)}</span>` : ''}${it.title ? `<span class="cap-t">${esc(it.title)}</span>` : ''}</span>`
         : '';
       const hov = c.hover !== false && (it.title || it.subtitle)
         ? `<span class="hov" aria-hidden="true">${it.title ? `<span class="hov-t">${esc(it.title)}</span>` : ''}${it.subtitle ? `<span class="hov-s">${esc(it.subtitle)}</span>` : ''}</span>`
         : '';
       return `<div class="cell" role="listitem"><button type="button" class="tile" data-i="${i}" aria-label="${esc(label)}">`
-        + `<img src="${esc(s.src)}"${s.srcset ? ` srcset="${esc(s.srcset)}" sizes="${this._sizes}"` : ''} data-fb="${esc(it.cover.url)}" alt="${esc(it.alt)}" loading="lazy" decoding="async" draggable="false">`
+        + `<img src="${esc(s.src)}"${s.srcset ? ` srcset="${esc(s.srcset)}" sizes="${this._sizes}"` : ''} data-fb="${esc(m.url)}" alt="${esc(it.alt)}" loading="lazy" decoding="async" draggable="false">`
         + (icons ? `<span class="icons" aria-hidden="true">${icons}</span>` : '')
         + cap + hov
         + `</button></div>`;
     }
 
     _open(i, from) {
-      if (i < 0 || i >= this._items.length) return;
+      const t = this._tiles[i];
+      if (!t) return;
       if (this._cfg.viewer === false) {
-        this.dispatchEvent(new CustomEvent('mgOpen', { detail: { id: this._items[i].id, index: i } }));
+        this.dispatchEvent(new CustomEvent('mgOpen', { detail: { id: this._items[t.p].id, index: t.p } }));
         return;
       }
       if (!this._viewer) this._viewer = new Viewer(this);
-      this._viewer.open(i, from);
+      this._viewer.open(t.p, from, Math.max(0, t.k));
     }
   }
 

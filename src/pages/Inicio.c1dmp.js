@@ -1,10 +1,11 @@
 // =====================================================
-// PAGE CODE — Inicio v1.4.0 — 25/11/2026
+// PAGE CODE — Inicio v1.5.0 — 25/11/2026
+// v1.5.0: una miniatura por foto, orden aleatorio, 2 cargas automáticas al bajar antes de "Ver más"
 // v1.4.0: sin botón "Explorar proyecto" (no se pasa link al visor)
 // v1.3.0: filas al cargar → escritorio 6, móvil 9
 // v1.2.0: filas al cargar → escritorio 4, móvil 7
 // v1.1.0: breakpoints del mosaico alineados con Studio (1001 / 751)
-// Mosaico de trabajos → custom element mg-mosaico v1.1.0
+// Mosaico de trabajos → custom element mg-mosaico v1.2.0
 // -----------------------------------------------------
 // Archivo:   src/pages/Inicio.c1dmp.js
 // Elemento:  Custom Element · ID: mosaico · Tag: mg-mosaico
@@ -19,7 +20,7 @@ import wixData from 'wix-data';
 import wixLocationFrontend from 'wix-location-frontend';
 import wixWindowFrontend from 'wix-window-frontend';
 
-const TAG = '[Inicio v1.4.0]';
+const TAG = '[Inicio v1.5.0]';
 const EL = '#mosaico';
 const COL_TRABAJOS = 'Import1';
 
@@ -52,6 +53,9 @@ $w.onReady(async function () {
     linkMode: 'event',
     breakpoints: { wide: 1001, desktop: 751, tablet: 751 },
     rows: { wide: 6, mobile: 9 },
+    photos: true,
+    shuffle: true,
+    autoLoad: 2,
     labels: LABELS[lang] || LABELS.es
   }));
 
