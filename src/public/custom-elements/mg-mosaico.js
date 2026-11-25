@@ -1,5 +1,6 @@
 /* =====================================================================
-   mg-mosaico.js — v1.0.0 — 25/11/2026
+   mg-mosaico.js — v1.1.0 — 25/11/2026
+   v1.1.0: "Ver más" añade config.more filas (escritorio 2, móvil 3)
    Mosaico de proyectos tipo Instagram — web pública Marisa Gutiérrez
    ---------------------------------------------------------------------
    Wix:     public/custom-elements/mg-mosaico.js
@@ -32,7 +33,7 @@
   'use strict';
 
   const TAG = 'mg-mosaico';
-  const VERSION = '1.0.0';
+  const VERSION = '1.1.0';
   if (typeof window === 'undefined' || !window.customElements || customElements.get(TAG)) return;
 
   /* ---------- Valores por defecto (todos sobrescribibles con el atributo config) ---------- */
@@ -40,6 +41,7 @@
     breakpoints: { wide: 1280, desktop: 900, tablet: 600 },   // ancho del propio elemento, en px
     cols: { wide: 6, desktop: 4, tablet: 3, mobile: 3 },
     rows: { wide: 2, desktop: 3, tablet: 4, mobile: 4 },      // filas visibles al cargar · 0 = todas
+    more: { wide: 2, desktop: 2, tablet: 4, mobile: 3 },      // filas que añade cada "Ver más"
     gap:  { wide: 4, desktop: 4, tablet: 3, mobile: 2 },      // px
     ratio: '3/4',                                             // proporción de la miniatura (ancho/alto)
     hover: true,                                              // velo con título al pasar el ratón
@@ -690,7 +692,7 @@ button{font:inherit;color:inherit;-webkit-tap-highlight-color:transparent}
     }
 
     _more() {
-      const rows = Math.max(1, int(this._cfg.rows[this._bp], 2));
+      const rows = Math.max(1, int(this._cfg.more[this._bp], 2));
       this._shown = Math.min(this._items.length, this._shown + this._cols * rows);
       this._sync();
     }
