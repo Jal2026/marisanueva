@@ -1,5 +1,6 @@
 // =====================================================
-// PAGE CODE — Inicio v1.1.0 — 25/11/2026
+// PAGE CODE — Inicio v1.2.0 — 25/11/2026
+// v1.2.0: filas al cargar → escritorio 4, móvil 7
 // v1.1.0: breakpoints del mosaico alineados con Studio (1001 / 751)
 // Mosaico de trabajos → custom element mg-mosaico v1.1.0
 // -----------------------------------------------------
@@ -16,7 +17,7 @@ import wixData from 'wix-data';
 import wixLocationFrontend from 'wix-location-frontend';
 import wixWindowFrontend from 'wix-window-frontend';
 
-const TAG = '[Inicio v1.1.0]';
+const TAG = '[Inicio v1.2.0]';
 const EL = '#mosaico';
 const COL_TRABAJOS = 'Import1';
 
@@ -48,6 +49,7 @@ $w.onReady(async function () {
   el.setAttribute('config', JSON.stringify({
     linkMode: 'event',
     breakpoints: { wide: 1001, desktop: 751, tablet: 751 },
+    rows: { wide: 4, mobile: 7 },
     labels: LABELS[lang] || LABELS.es
   }));
 
